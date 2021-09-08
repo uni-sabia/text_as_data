@@ -1,6 +1,7 @@
-# Hertie School Elective Course for Policy Analysis
+# Text as Data 
+- Hertie School Elective Course for Policy Analysis 
+- Fall 2021 
 - Instructor: Dr. Matthias Haber
-- Course title: Text as Data (GRAD-E1282) 
 
 # References 
 - R for Data Science https://r4ds.had.co.nz/data-import.html
