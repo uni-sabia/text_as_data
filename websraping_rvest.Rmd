@@ -1,0 +1,75 @@
+---
+title: "Websraping with rvest"
+author: "Uni Lee"
+date: "9/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+library(tidyverse)
+library(readtext)
+library(quanteda)
+library(readxl)
+library(DBI)
+library(httr)
+library(rvest)
+library(jsonlite)
+```
+# How does webscraping with R work? 
+  * The user manually specify a resource
+  * R sends request to server that hosts website
+  * server returns resource
+  * R parses HTML (i.e., interprets the structure), but does not render it in a tidy fashion
+  * The user tells R which parts of the structure to focus on and what content to extract
+
+# Packages for Webscraping
+## Let others help you
+- [ropensci](https://ropensci.org/) provides a list of easy-to-use interfaces to open data.
+
+## rvest
+[rvest package](https://github.com/tidyverse/rvest) provides functions to scrape information from web pages. To use this package, you also need httr package. 
+
+# Basic workflow for rvest
+
+I would like to extract a table on the official webstie of Green-e, who independently certifies green electricity products in the United States. 
+
+```{r}
+# 1. Specify URL
+url <- "https://www.green-e.org/certified-resources"
+
+# 2. Apply read_html() function to download static html of the URL and parse it into an xml file
+url_parsed <- url %>% read_html()
+
+# 3. Select the portion of the website that you would like to scrape. I used a Google Chrome extension called "CCSViewer" to select the element. 
+ccs <- "td"
+
+# 4. Extract content from nodes
+content <- html_nodes(url_parsed, ccs) %>% html_text()
+```
+
+So, we successfully extracted all the data in the table of our interest. But notice how they are not in a neat table. So we have to give our data some structure, the way they are presented on the website.
+
+## Cleaning data
+
+First, we eliminate whitespace from the text data using str_trim() function from stringr package.  Then, we apply 
+
+```{r}
+content_nospace <- str_trim(content) 
+
+content_tb <- matrix(content_nospace, ncol=5, byrow=TRUE) %>% as.data.frame()
+names(content_tb) <- c("provider", "product_type", "product_name", "service_territory", "renewable_content")
+
+```
+
+Finally we have scraped the table we wanted from the website! This table is now ready for further analysis. 
+
+```{r}
+head(content_tb)
+```
+
+
+
+
+
