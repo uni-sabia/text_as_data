@@ -1,0 +1,113 @@
+---
+title: "Accessing APIs"
+author: "Uni Lee"
+date: "9/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(httr)
+library(rtweet)
+library(jsonlite)
+library(rmarkdown)
+```
+
+## APIs
+
+*Application Programming Interface (API)* is a defined interface for communication between software components.
+- *Web* API: provides an interface to structured data from a web service
+- APIs is an easier way to collect mass data from the web than webscraping. So, you're lucky if your data provider has APIs! 
+
+## Functionality of APIs
+
+Consider the API as the server, and yourself as the client. You can communicate with the server using API endpoints (URLs).
+
+*Hypertext transfer protocol (HTTP)* is the APIs' method of communication, which contains header and message body. 
+
+Here are some messages that you'd get:
+
+- 2xx: Success
+- 4xx: Client error (incl. the popular *404: Not found* or *403: Forbidden*)
+- 5xx: Server error
+- The message body contains the requested data in a specific format, often JSON or XML.
+
+## Examples of popular APIs
+
+Social media:
+
+- [Twitter](https://developer.twitter.com/)
+- [Facebook Graph API](https://developers.facebook.com/docs/graph-api/) (restricted to own account and public pages)
+- [YouTube (Google)](https://developers.google.com/youtube/)
+- [LinkedIn](https://www.linkedin.com/developers/)
+- [National Renewable Energy Laboratory](https://developer.nrel.gov/)
+- For more, see [programmableweb.com](http://www.programmableweb.com/).
+
+### Exercise: Getting utility rates from OpenEI
+As an exercise, we will get data on the US utility rates from OpenEI API. You need the `httr` and `jsonlite` package for this.
+
+First, identify base url and endpoints. Sign up to get a token for access (api_key). 
+
+```{r}
+base <- "https://api.openei.org/"
+endpoint <- "utility_rates"
+key <- "&api_key=0uDDzDsgxHMfZbIfqEbGHEpPqnCgNwWkEYIMj4KB"
+
+query <- "?version=latest&format=json"
+
+query_full <- paste0(base, endpoint,query, key)
+
+res <- GET(query_full) # Ask the server for data 
+res
+
+```
+
+The query was successful (status=200)! The data taks on a `json` format, so we will use functions from the `jsonlit`e library to get the results in a dataframe. 
+
+```{r}
+utilityrate <- rawToChar(res$content) %>% # Data in a character format (JSON structure) 
+  fromJSON() # This returns a list
+
+utilityrate_df <- utilityrate$items
+
+names(utilityrate_df)
+
+utilityrate_sub <- utilityrate_df %>% 
+  select(sector, utility, name, source, country, startdate, description)
+paged_table(utilityrate_sub)
+```
+
+
+3. Collect some data from their API from a politician running in your constituency (or a constituency of your choice). Tip: Use the `fromJSON` function in `jsonlite` to load a JSON file via the API into R. Convert the output into a nicely formatted dataframe.
+
+## API wrapper packages
+
+Use "API wrapper packages" in R whenever possible, because they are easier to use: *rtweet*, *ggmap* (geocoding via Google Maps), *wikipediR*, etc.
+
+## Twitter
+
+* REST APIs are used to read and write tweets. 
+* Streaming APIs provides low latency access to 1% of global stream - public, user and site streams
+- See documentation athttps://dev.twitter.com/overview/documentation
+
+### Wrapper package "rtweet"
+Find out what you can do with the `rtweet` package: <https://github.com/mkearney/rtweet> 
+
+In general, the function `search_tweets` will be your friend. This function allows you to collect data from the past 6-9 days. 
+
+For the purpose of this exercise, I will collect tweets with terms "plant-based meat" or "alternative protein". The first argument of `search_tweets` function is `q`, which takes queries as strings to search in Twitter's REST API.
+
+```{r}
+tweets <- search_tweets(
+  "plant-based meat OR alternative protein", # Query to be searched
+  n=1000, include_rts=FALSE # Only get original tweets 
+)
+
+length(names(tweets)) #The dataset provided by Tweeter API has 90 variables! 
+tweets_sub <- tweets %>% select(text, user_id, name,hashtags, created_at)  #Select relevant variables
+paged_table(tweets_sub)
+
+```
+
