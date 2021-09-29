@@ -18,22 +18,22 @@ library(rvest)
 library(jsonlite)
 ```
 # How does webscraping with R work? 
-  * The user manually specify a resource
-  * R sends request to server that hosts website
-  * server returns resource
-  * R parses HTML (i.e., interprets the structure), but does not render it in a tidy fashion
-  * The user tells R which parts of the structure to focus on and what content to extract
+1) The user manually specify a resource
+2) R sends request to server that hosts website
+3) Server returns resource
+4) R parses HTML (i.e., interprets the structure), but does not render it in a tidy fashion
+5) The user tells R which parts of the structure to focus on and what content to extract
 
 # Packages for Webscraping
 ## Let others help you
 - [ropensci](https://ropensci.org/) provides a list of easy-to-use interfaces to open data.
 
 ## rvest
-[rvest package](https://github.com/tidyverse/rvest) provides functions to scrape information from web pages. To use this package, you also need httr package. 
+[rvest package](https://github.com/tidyverse/rvest) provides functions to scrape information from web pages. 
 
 # Basic workflow for rvest
 
-I would like to extract a table on the official webstie of Green-e, who independently certifies green electricity products in the United States. 
+To demonstrate the basic worflow for rvest, I will extract a table on the official webstie of [Green-e](https://www.green-e.org/), who independently certifies green electricity products in the United States. 
 
 ```{r}
 # 1. Specify URL
@@ -47,9 +47,10 @@ ccs <- "td"
 
 # 4. Extract content from nodes
 content <- html_nodes(url_parsed, ccs) %>% html_text()
+typeof(content)
 ```
 
-So, we successfully extracted all the data in the table of our interest. But notice how they are not in a neat table. So we have to give our data some structure, the way they are presented on the website.
+So, we successfully extracted all the data in the table of our interest. But notice how they are a vector of strings. We want to turn this vector into a table with five columns, as presented on the website. 
 
 ## Cleaning data
 
@@ -59,6 +60,7 @@ First, we eliminate whitespace from the text data using str_trim() function from
 content_nospace <- str_trim(content) 
 
 content_tb <- matrix(content_nospace, ncol=5, byrow=TRUE) %>% as.data.frame()
+
 names(content_tb) <- c("provider", "product_type", "product_name", "service_territory", "renewable_content")
 
 ```
@@ -66,9 +68,23 @@ names(content_tb) <- c("provider", "product_type", "product_name", "service_terr
 Finally we have scraped the table we wanted from the website! This table is now ready for further analysis. 
 
 ```{r}
-head(content_tb)
+head(content_tb, 5) 
 ```
 
+# Overview of Green-e certified green power products available in the US
+
+The following code gives an overview of green power products available in the US. 
+
+```{r}
+n_product <- nrow(content_tb) 
+n_provider <- length(unique(content_tb$provider))
+
+n_100wind <- nrow(content_tb %>% filter(renewable_content %in% c("100% Wind")))
+n_100solar <- nrow(content_tb %>% filter(renewable_content %in% c("100% Solar")))
+
+```
+
+In the US, `r n_provider` electricity providers offer `r n_product` Green-e certified green power products, including residential, commerical and wholesale. `r round(n_100wind/n_product*100,2)`% of the products are feature 100% wind, and `r round(n_100solar/n_product*100,2)`% of the products feature 100% solar. 
 
 
 
