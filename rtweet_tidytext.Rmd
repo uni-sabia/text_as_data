@@ -1,0 +1,94 @@
+---
+title: "Creating a word cloud of tweets related to plant-based meat using rtweet and tidytext packages"
+author: "Uni Lee"
+date: "9/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(rmarkdown) # to present tables 
+library(tidytext) # to tidy text data
+library(rtweet) # to retrieve tweets
+library(wordcloud) # to create word clouds
+library(RColorBrewer)
+
+```
+
+
+In this blog, we will analyze discussions about reat on Twitter Here's the twitter data for plant-based meat and alternative protein that we obtained using `rtweet` function in our last blog post. 
+
+```{r}
+tweets <- search_tweets(
+  "plant-based meat OR plant-based protein", # Query to be searched
+  n=1100, include_rts=FALSE # Only get original tweets 
+)
+
+tweets_text <- tweets %>% select(text) %>% tibble() %>% rownames_to_column()
+paged_table(tweets_text%>% select(text, rowname))
+```
+
+For analysis, we need to turn this dataset into a tidy text dataframe, which means *a table with one-token-per-row*. *Tokenization* means separating text into single words, n-grams, sentences, or any unit of analysis of your choice. 
+- A token in each row can be a single word, an n-gram, a sentence, etc.
+- Tidy data sets can be manipulated with the standard tidy tools (dplyr, tidyr, ggplot2, etc.)
+
+## Tokenize text in the dataset
+
+Using the `unnest_tokens` function from tidytext library, break the text into tokens. You can choose from words, characters, ngrams, sentences, lines, etc. as the unit for tokenizing in the "token" parameter. 
+
+```{r}
+token_df <- tweets_text %>% 
+  unnest_tokens(words,text)
+paged_table(token_df)
+```
+
+## Remove stopwords and count words
+
+To extract words that are relevant for analysis, we need to remove stop words and count words. To do this, we will load a dataframe that contains a list of commonly found stop words from the tidytext library. Then, we will use `anti_join` function from dplyr to remove them.
+
+```{r}
+data("stop_words")
+nrow(stop_words) # There are 1149 stop words
+
+token_df_pure <- token_df %>% 
+  rename(word=words) %>% # make the column names match
+  anti_join(stop_words)
+
+nrow(token_df_pure)
+```
+
+`nrow(token_df)-nrow(token_df_pure)` entries were removed from the original dataset, leaving us with `nrow(token_df_pure)` entries.
+
+# Generating a word cloud
+
+The wordcloud package is an easy way to generate a word cloud. First, we have to summarize the text data. 
+
+```{r warning=FALSE}
+cloud_df<- token_df_pure %>%
+  count(word, sort=TRUE) 
+`%!in%` <- Negate(`%in%`) # Build a negate %in% function
+
+# Get a vector of words that you don't want in the cloud
+not <- c("based", "meat", "protein", "plant","t.co", "ed", "op", "1", "amp", "23", "https", "de", "it's", "i'm", "15", "hh", "held", "jbs", "hitread", "aren't", "article", "add", "100", 100, 12, "12", "i'm", 3, 2)
+
+# Filter out words you don't want
+cloud_df_filter <- cloud_df %>% 
+  filter(word %!in% not) %>%
+  arrange(desc(n))
+
+paged_table(cloud_df_filter)
+
+set.seed(1234)
+wordcloud(words=cloud_df_filter$word,
+          freq=cloud_df_filter$n,
+          min.freq=1,
+          max.words=200,
+          random.order=FALSE,
+          rot.per=0.35,
+          colors=brewer.pal(8, "Set2"))
+```
+
+
+
