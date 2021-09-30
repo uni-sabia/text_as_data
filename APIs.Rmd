@@ -80,8 +80,6 @@ paged_table(utilityrate_sub)
 ```
 
 
-3. Collect some data from their API from a politician running in your constituency (or a constituency of your choice). Tip: Use the `fromJSON` function in `jsonlite` to load a JSON file via the API into R. Convert the output into a nicely formatted dataframe.
-
 ## API wrapper packages
 
 Use "API wrapper packages" in R whenever possible, because they are easier to use: *rtweet*, *ggmap* (geocoding via Google Maps), *wikipediR*, etc.
