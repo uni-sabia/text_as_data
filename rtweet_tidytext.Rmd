@@ -1,5 +1,5 @@
 ---
-title: "Creating a word cloud of tweets related to plant-based meat using rtweet and tidytext packages"
+title: "A word cloud of tweets related to plant-based meat using rtweet and tidytext packages"
 author: "Uni Lee"
 date: "9/29/2021"
 output: html_document
@@ -17,16 +17,16 @@ library(RColorBrewer)
 
 ```
 
-
-In this blog, we will analyze discussions about reat on Twitter Here's the twitter data for plant-based meat and alternative protein that we obtained using `rtweet` function in our last blog post. 
+What are some key themes that come up when In this blog, we will analyze discussions about reat on Twitter Here's the twitter data for plant-based meat and alternative protein that we obtained using `rtweet` function in our last blog post. 
 
 ```{r}
 tweets <- search_tweets(
-  "plant-based meat OR plant-based protein", # Query to be searched
+  "plant-based meat", # Query to be searched
   n=1100, include_rts=FALSE # Only get original tweets 
 )
 
-tweets_text <- tweets %>% select(text) %>% tibble() %>% rownames_to_column()
+tweets_text <- tweets %>% 
+  filter(country %in% c("United States", "Australia")) %>% select(text) %>% tibble() %>% rownames_to_column()
 paged_table(tweets_text%>% select(text, rowname))
 ```
 
@@ -71,7 +71,9 @@ cloud_df<- token_df_pure %>%
 `%!in%` <- Negate(`%in%`) # Build a negate %in% function
 
 # Get a vector of words that you don't want in the cloud
-not <- c("based", "meat", "protein", "plant","t.co", "ed", "op", "1", "amp", "23", "https", "de", "it's", "i'm", "15", "hh", "held", "jbs", "hitread", "aren't", "article", "add", "100", 100, 12, "12", "i'm", 3, 2)
+# not <- c("based", "meat", "protein", "plant","t.co", "ed", "op", "1", "amp", "23", "https", "de", "it's", "i'm", "15", "hh", "held", "jbs", "hitread", "aren't", "article", "add", "100", 100, 12, "12", "i'm", 3, 2)
+
+not <- c("t.co", "ed", "op", "1", "amp", "23", "https", "de", "it's", "i'm", "15", "hh", "held", "jbs", "hitread", "aren't", "article", "add", "100", 100, 12, "12", "i'm", 3, 2)
 
 # Filter out words you don't want
 cloud_df_filter <- cloud_df %>% 
