@@ -55,7 +55,7 @@ base <- "https://api.openei.org/"
 endpoint <- "utility_rates"
 key <- "&api_key=0uDDzDsgxHMfZbIfqEbGHEpPqnCgNwWkEYIMj4KB"
 
-query <- "?version=latest&format=json"
+query <- "?version=7&format=json&detail=full"
 
 query_full <- paste0(base, endpoint,query, key)
 
@@ -75,8 +75,10 @@ utilityrate_df <- utilityrate$items
 names(utilityrate_df)
 
 utilityrate_sub <- utilityrate_df %>% 
-  select(sector, utility, name, source, country, startdate, description)
+  select(utility, sector, name, description, demandrateunit, energyratestructure, fixedchargeunits, fixedchargefirstmeter, energycomments)
 paged_table(utilityrate_sub)
+rate <- utilityrate_sub$energyratestructure ## How do we change this to a dataframe?? 
+
 ```
 
 

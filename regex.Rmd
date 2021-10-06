@@ -1,0 +1,49 @@
+---
+title: "String manipulation"
+author: "Uni Lee"
+date: "10/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(stringr)
+library(tidyverse)
+library(dplyr)
+```
+
+# Escaping quotes in strings 
+
+```{r}
+double_quote <- "\"" # or '"'
+single_quote <- '\'' # or "'"
+```
+
+## Special characters
+
+* `\n	 newline`
+* `\r	 carriage return`
+* `\t	 tab`
+* `\b	 backspace`
+* `\a	 alert (bell)`
+* `\f	 form feed`
+* `\v	 vertical tab`
+* `\\	 backslash \`
+
+# Exercises
+
+```{r}
+words <- stringr::words
+
+start_with_y <- "^y"
+end_with_x <- "x$"
+start_with_a_vowel <- "^[aeiou]"
+only_consonant <- "^[^aeiou]+$"
+ed_not_eed <- "^ed$[^e]ed$"
+starts_with_3_consonants <- "^[^aeiou]{3}"
+three_or_more_vowels_ <- "[aeiou]{3,}"
+
+str_subset(words, three_or_more_vowels_)
+
+```
+
