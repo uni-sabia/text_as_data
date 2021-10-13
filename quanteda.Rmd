@@ -180,4 +180,4 @@ dfm_trim(ing_dfm,
          max_docfreq = 44.25)
 
 ```
-
+ 
