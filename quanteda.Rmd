@@ -1,0 +1,183 @@
+---
+title: "Quanteda"
+author: "Uni Lee"
+date: "10/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+library(tidyverse)
+library(readtext)
+library(quanteda)
+```
+
+# About corpus (corpora for plural)
+
+> A text corpus is a large and unstructured set of texts (nowadays usually electronically stored and processed) used to do statistical analysis and hypothesis testing, checking occurrences or validating linguistic rules within a specific language territory. Source: [Library of the University of Queensland]( https://guides.library.uq.edu.au/research-techniques/text-mining-analysis/language-corpora) 
+
+For more, read this article from the developers of Quanteda: https://quanteda.io/articles/quickstart.html
+
+Corpus is a reference object from which we can extract text data. To do so, simply coerce it to a plain character.
+```{r}
+# inaugural corpus from quanteda 
+corpus <- data_corpus_inaugural
+summary(corpus)
+
+# text data from the corpus
+data <- as.character(corpus)[2]
+data
+```
+
+# Steps of Preprocessing
+
+1. Tokenize the text to unigrams or other units of analysis
+
+```{r}
+# tokens function uses external/internal tokenizer to construct a token object. 
+## Preserves hyphens, urls, social media tags, email addresses. 
+
+tokens(data, 
+       what= "word")
+
+# tokenizer library
+text <- paste0("https://t.co/8z2f3P3sUc  @datageneral FB needs to hurry up","Since eating my feelings has not fixed the world's problems, I guess I'll try to sleep...")
+
+
+tokenizers::tokenize_words(text)
+tokenizers::tokenize_tweets(text)
+```
+
+2. Convert all characters to lower-case 
+ - Danger of losing insights from case difference
+ 
+```{r}
+test2 <- tokens(text)
+tokens_tolower(test2, keep_acronyms = TRUE)
+```
+ 
+ 
+3. Remove punctuation 
+4. Remove numbers and symbols
+
+```{r}
+tokens(text,
+       remove_punct=TRUE,
+       remove_numbers=TRUE,
+       remove_symbols=TRUE)
+```
+
+
+5. Remove stop words, including custom stop words 
+
+```{r}
+# First, tokenize the text
+txt_tokens <- tokens(text)
+tokens_remove(txt_tokens, stopwords("en"))
+
+# For foreign languages, use "snowball" or "nltk", they are sources for language. 
+stopwords::stopwords_getlanguages("snowball")
+stopwords::stopwords_getlanguages("nltk")
+
+token2 <- tokens("Yaşamak bir ağaç gibi tek ve hür ve bir orman gibi
+kardeşçesine, bu hasret bizim.")
+tokens_remove(token2, stopwords("tr", source="nltk"))
+```
+
+6. Stem words, or lemmatize it 
+
+tokens_wordstem() function to a tokenized object
+
+```{r}
+tokens_wordstem(txt_tokens)
+```
+
+7. Do all in one-go!
+
+```{r}
+corp <- quanteda::data_corpus_inaugural
+
+token <- tokens(corp,
+                what = "word", 
+                remove_punct = TRUE,
+                remove_symbol = TRUE,
+                remove_numbers = FALSE)
+
+token_low <- tokens_tolower(token) 
+
+token_reduced <- token_low %>% 
+  tokens_remove(stopwords("en")) %>%
+  tokens_wordstem()
+
+token_reduced
+```
+
+# Keywords in Context
+
+`kwic` function returns all the appearances of a word in context
+
+```{r}
+kwic(token_reduced, "*slave*", # Wildcard: looks for any word that includes "slave" 
+     window=5) # how many words to consider as "context"
+
+nrow(kwic(token_reduced, "*slave*", 
+     window=5))
+# The word "slave" appears 43 times in inaugral speeches. 
+
+```
+
+# Document feature matrix
+
+Quanteda is focused on bag-of-words models tht work from a document-feature matrix, where each row represents a document, each column represents a type (a "term" in the vocabulary) and the entries are the counts of tokens matching the term in the current document. 
+
+To create a document-feature matrix, use the dfm() function and apply it directly to the tokens object along with some common preprocessing options.
+
+"Features" mean "terms", "tokens" inside the text. 
+"Sparsity" is the count of features. If it is distributed widely across the text, then the number will be higher (how many 0s are there in the count of features?).
+
+```{r}
+my_dfm <- quanteda::dfm(token_reduced)
+my_dfm
+```
+
+Frequently occurring features? 
+
+```{r}
+topfeatures(my_dfm, 10)
+```
+
+dfm_trim function reduces the size of your dfm by removing sparse or frequently appearing terms.
+
+```{r}
+dfm_trim(my_dfm, 
+         min_termfreq=10, # get rid of terms that occur less than 10 times
+         mx_termfreq=100) # get rid of terms that occur more than 100 times. 
+```
+
+Exercise
+
+Construct a dfm of trigrams from the inaugural speeches (lower case, no punctuation, not stemmed, no stop words removed).
+
+```{r}
+corpus <- data_corpus_inaugural
+ing_tkn <- corpus %>% tokenize_ngrams(lowercase=TRUE,
+                                      n=3L) %>% 
+  tokens(remove_punct = TRUE)
+
+ing_dfm <- dfm(ing_tkn)
+
+# a) How big is the matrix? How sparse is it?
+ing_dfm
+nrow(ing_dfm)
+
+# b) What are the 20 most frequent trigrams?
+topfeatures(ing_dfm, 20)
+
+# c) Keep only those trigrams occurring at least 50 times and in at least 3/4 of the documents
+dfm_trim(ing_dfm,
+         min_termfreq = 50, 
+         max_docfreq = 44.25)
+
+```
+
