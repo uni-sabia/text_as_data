@@ -1,0 +1,123 @@
+---
+title: "Plotting text data"
+author: "Uni Lee"
+date: "10/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Plotting frequent words appearing in a novel, Moby Dick
+
+## Load and tokenize Moby Dick
+
+```{r}
+library(readtext)
+library(dplyr)
+library(quanteda)
+
+moby_dick <- readtext("data/moby_dick.txt")
+moby_dick_tokens <- tokens(moby_dick$text, what = "word", 
+                           remove_punct = TRUE) %>% 
+  tokens_tolower() %>% 
+  tokens_remove(stopwords("english"))
+moby_dfm <- dfm(moby_dick_tokens)
+```
+
+
+## Plot
+
+```{r}
+library(quanteda.textplots)
+library(quanteda.textstats)
+library(ggplot2)
+
+theme_set(theme_minimal())
+textstat_frequency(moby_dfm, n=20) %>% 
+  ggplot(aes(x = reorder(feature, -rank), y = frequency)) +
+  geom_point() + 
+  labs(x = "", y = "Term Frequency")
+```
+
+## Make it relative
+
+```{r}
+moby_dfm_pct <- dfm_weight(moby_dfm, scheme = "prop")
+
+textstat_frequency(moby_dfm_pct, n = 10) %>% 
+  ggplot(aes(x = reorder(feature, -rank), y = frequency)) +
+  geom_col() + coord_flip() + 
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "", y = "Relative Term Frequency") 
+
+```
+
+## plot relative word frequencies
+
+```{r, echo = FALSE}
+textstat_frequency(moby_dfm_pct, n = 10) %>% 
+  ggplot(aes(x = reorder(feature, -rank), y = frequency)) +
+  geom_col() + coord_flip() + 
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "", y = "Relative Term Frequency") 
+```
+
+## Lexical dispersion
+
+```{r, eval=FALSE}
+textplot_xray(
+    kwic(moby_dick_tokens, pattern = "whale"),
+    kwic(moby_dick_tokens, pattern = "Ahab")) + 
+    ggtitle("Lexical dispersion")
+
+
+```
+
+## Analyzing chapters 
+
+Create a corpus object and supply them as document names to analyze individual chapters of the book 
+
+```{r}
+moby_chapter <- corpus(moby_dick) %>%
+  corpus_segment(pattern = "CHAPTER \\d+", valuetype = "regex") 
+
+# Overwrite docvars with chapter names
+docnames(moby_chapter) <- docvars(moby_chapter, "pattern")
+moby_chapter_tokens <- tokens(moby_chapter, remove_punct = TRUE) %>% 
+  tokens_tolower() %>% 
+  tokens_remove(stopwords("english"))
+```
+
+## How many times does a word (pattern) appear by chapter? 
+
+```{r}
+textplot_xray(
+  kwic(moby_chapter_tokens[1:10], pattern = "ishmael*"),
+  kwic(moby_chapter_tokens[1:10], pattern="whale*")) + 
+  aes(color=keyword) + theme(legend.position="none")
+)
+```
+
+# Word Clouds
+
+```{r}
+textplot_wordcloud(moby_dfm, 
+                   min_count = 50, 
+                   random_order = FALSE, 
+                   rotation = .25, 
+                   color=RColorBrewer::brewer.pal(8, "Dark2"))
+```
+
+## Group word clouds
+
+```{r}
+moby_chapter_tokens[1:3] %>%
+  dfm() %>%
+  dfm_group(groups=pattern) %>%
+  dfm_trim(min_termfreq=5, verbose=FALSE) %>%
+  textplot_wordcloud(comparison=TRUE)
+```
+
+
