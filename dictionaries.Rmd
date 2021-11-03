@@ -1,0 +1,140 @@
+---
+title: "Dictionaries"
+author: "Uni Lee"
+date: "11/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+library(tidyverse)
+library(readtext)
+library(quanteda)
+theme_set(theme_minimal())
+```
+
+# Dictionaries
+
+- Dictionaries classifying texts to categories or determine their content of a known concept
+- hybrid  between qualitative and quantitative classification.
+- Dictionaries pre-define words associated with specific meanings
+- They consist of keys and values, where the "key" is a category such as "positive" or "negative", and the "values" consist of the patterns assigned to each key that will be counted as occurrences of those keys 
+- Dictionaries often require lemmatization rather than stemming
+
+> Stemming just removes or stems the last few characters of a word, often leading to incorrect meanings and spelling. Lemmatization considers the context and converts the word to its meaningful base form, which is called Lemma. Sometimes, the same word can have multiple different Lemmas. Source: [Pokhrel, Stack Overflow ](https://stackoverflow.com/questions/1787110/what-is-the-difference-between-lemmatization-vs-stemming#:~:text=Stemming%20just%20removes%20or%20stems,can%20have%20multiple%20different%20Lemmas.)
+
+- A dictionary is basically just a list of words that is related to a common concept
+- Applying them to a corpus of texts simply requires counting the number of times each word in the list occurs in each text and summing them
+
+# Creating and applying dictionaries using quanteda package
+
+```{r}
+# First, use dictionary function to create lists of dictionaries
+pos_dict <- dictionary(list(liberalism = c("free", "freedom", "choose", "capitalism", "open", "competition", "compete")
+  , environment = c("planet", "climate*", "renewable", "fossil", "life", "natur*", "conserve", "eco*", "forest", "natural", "green", "animal"),
+           development = c("invest*", "price", "gdp", "develop*", "inflat*", "job*", "grow*", "economy", "advanc*")))
+
+# Second, apply the dictionary to a dfm (simple!) using dfm_lookup() function
+pos_dfm <- data_corpus_inaugural %>% 
+  tokens(remove_punct = TRUE, remove_numbers = TRUE) %>% 
+  tokens_tolower() %>%
+  dfm() %>% 
+  dfm_lookup(pos_dict) #pre-defined dictionary in the function
+
+pos_dfm
+```
+
+## What if you want to analyse using proportions? 
+
+```{r}
+pos_dfm_wgt <- data_corpus_inaugural %>% 
+  tokens(remove_punct = TRUE, remove_numbers = TRUE) %>% 
+  tokens_tolower() %>%
+  dfm() %>% 
+  dfm_weight(scheme="prop") %>%
+  dfm_lookup(pos_dict) 
+
+pos_dfm_wgt
+```
+
+## Plotting the result
+
+First, convert the dfm to a dataframe using convert() function from the quanteda package. Then tidy up data to apply ggplot for graphing.
+
+```{r}
+pos_df_wgt <- pos_dfm_wgt %>% 
+  convert(to = "data.frame") %>% 
+  cbind(docvars(pos_dfm_wgt)) %>% 
+  tidyr::gather(pos, share, liberalism:development)
+
+pos_df_wgt %>% 
+ggplot(aes(x = Year, y = share, color = pos)) +
+  geom_line() +
+  ylab("Share of Document") +
+  theme(legend.title = element_blank())
+
+```
+
+# Sentiment analysis
+
+We will use quanteda.sentiment package to conduct a sentiment analysis. `quanteda.sentiment` has two main functions: `textstat_polarity()` to compute _polarity-based sentiments_ (i.e. polar opposites such as republican vs. democrat or negative vs. positive) and `textstat_valence()` to compute _valence-based sentiments_ for continuous degrees of sentiments.
+
+```{r}
+# devtools::install_github("quanteda/quanteda.sentiment")
+library(quanteda.sentiment)
+
+# View built-in dictionaries
+
+print(data_dictionary_geninqposneg, max_nval = 5)
+```
+
+## Polarity-based sentiment dictionary
+
+To compute the polarity-based sentiment scores for the most recent inaugural speeches we can simply apply the `textstat_polarity()`function to our corpus and specify the dictionary we wish to use.
+
+```{r}
+data(data_corpus_inaugural, package = "quanteda")
+data_corpus_inaugural
+sent_pres <- data_corpus_inaugural %>%
+  corpus_subset(Year > 1980) %>% 
+  textstat_polarity(dictionary = data_dictionary_LSD2015)
+tail(sent_pres)
+
+sent_pres %>% 
+  ggplot(aes(x = sentiment, y = reorder(doc_id, sentiment))) +
+    geom_point() +
+    ylab("")
+```
+
+## Valence-based sentiment dictionary 
+
+If we want to apply a valence-based dictionary instead we would use the `textstat_valence()` function. For example to 
+compute the valence scores using  Nielsen’s (2011) ‘new ANEW’ valenced word list:
+
+```{r}
+tail(data_corpus_inaugural) %>%
+  textstat_valence(dictionary = data_dictionary_AFINN)
+```
+
+## Exercise
+
+Download the corpus of 6,000 Guardian news articles using `download("data_corpus_guardian")` and create a plot showing how the sentiment score has changed over time. Paste your results into the chat.
+
+```{r}
+# remotes::install_github("quanteda/quanteda.corpora")
+library(quanteda.corpora)
+
+guard <- download("data_corpus_guardian")
+guard
+sent_guard <- guard %>%
+  textstat_polarity(dictionary = data_dictionary_LSD2015) %>%
+  dplyr::mutate(date=docvars(guard)$date)
+tail(sent_guard)
+
+sent_guard %>% 
+  ggplot(aes(x = date, y = sentiment)) +
+    geom_smooth() +
+    ylab("")
+```
+
