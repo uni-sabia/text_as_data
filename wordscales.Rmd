@@ -247,4 +247,27 @@ textplot_scale1d(wf, margin = "features",  alpha = 0.2,
   theme_minimal()
 
 ```
+## Homework
+
+```{r}
+coal <- data_corpus_EPcoaldebate # EU coal subsidies debate in 2010
+summary(coal)
+
+coal_tok <- tokens(coal,  
+               remove_punct = TRUE, 
+               remove_symbols = TRUE,  
+               remove_numbers = TRUE) %>%
+  tokens_tolower() # Tokenize and clean tokens
+
+coal_tok_stop <- tokens_remove(coal_tok, stopwords("en")) # remove stopwords
+
+coal_dfm <- dfm(coal_tok_stop) # create a dfm
+coal_dfm
+
+# Fit a wordfish model to the dfm
+wf <- textmodel_wordfish(coal_dfm, dir = c(3, 21)) # We use the `dir` argument to set the polar opposites of the scale. In this case we assume that that the 3rd speaker Barbara Boxer, is to the left of the 21st speaker Rick Santorum.
+
+summary(wf)
+
+```
 
