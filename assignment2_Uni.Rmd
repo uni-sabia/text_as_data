@@ -13,7 +13,7 @@ library(dplyr)
 library(tidyr)
 library(seededlda)
 library(stm)
-library(furrr) # for parallel processing
+library(kableExtra)
 theme_set(theme_minimal())
 ```
 
@@ -61,38 +61,100 @@ para_stm <- convert(para_dfm,
 
 ```{r, message=FALSE}
 
-for (k in c(10, 20, 30, 40, 50)){
-  stm_model <- stm(para_stm$documents,
-                     para_stm$vocab,
-                     K=k,
-                     data=para_stm$meta,
-                     init.type="LDA",
-                     verbose=FALSE)
-  plot(stm_model)
-  labelTopics(stm_model)
-}
+model1 <- stm(para_stm$documents,
+              para_stm$vocab,
+              verbose=FALSE,
+              K=10)
+
+model2 <- stm(para_stm$documents,
+              para_stm$vocab,
+              verbose=FALSE,
+              K=20)
+
+model3 <- stm(para_stm$documents,
+              para_stm$vocab,
+              verbose=FALSE,
+              K=30)
+
+model4 <- stm(para_stm$documents,
+              para_stm$vocab,
+              verbose=FALSE,
+              K=40)
+
+model5 <- stm(para_stm$documents,
+              para_stm$vocab,
+              verbose=FALSE,
+              K=50)
+
 
 ```
 
 
 4. Create a diagnostic plot showing the held-out likelihood, the residuals, the semantic coherence of the topics, and the lower bound. Also create a plot to contrast the semantic coherence with the exclusivity of the topics, i.e. how much each topic has its own vocabulary not used by other topics. Explain your results and decide on an optimal number of topics to continue with.
 
+To choose the number of topics, we can consult several quantitative diagostic values by using `searchK()` function. The Held-out likelihood estimates the probability of words appearing within a document when those words have been removed from the document (conditional probability). In other words, the higher the likelihood, the higher the model's prediction performance. Overdispersion of residuals indicates that more topics are needed to soak up the variance. Lastly, semantic coherence is maximized when the most probable words in a given topic frequently co-occur together. However, this could happen just by having a few topics dominated by very common words. To check the validity of this measure, we must contrast it with exclusivity, as shown in the second graph created using `plotModels()` function. In our example, I will choose K=30. First, I ruled out k=50 because its residuals were too high. k=30 had the highest held-out likelihood than the rest. Note that the results are different for each run, so the numbers I provide here may be different from results of the current run.
+
 ```{r}
+# Diagnostic Values 
 search <- searchK(
   documents = para_stm$documents,
   vocab = para_stm$vocab,
-  K = c(10,20,30,40,50),
+  K = c(10, 20, 30, 40, 50),
   init.type="LDA",
   verbose=FALSE
 )
 
 plot(search)
+
+# For k=30, 
+# Check semantic coherence vs. exclusivity to check topic quality
+k_30 <- selectModel(para_stm$documents, 
+            para_stm$vocab, 
+            K = 30, 
+            data = para_stm$meta, seed = 8458159,
+            verbose=FALSE,
+            runs = 10
+            )
+plotModels(k_30,
+  xlab = "Semantic Coherence",
+  ylab = "Exclusivity",
+  labels = 1:length(k_30$runout),
+  legend.position="bottomleft")
 ```
 
 
 ## Create topic labels and explore topic prevalence
 
-5. After you selected your preferred topic model, explore the word probabilities ($\beta$) and create meaningful labels for each topic. For some topics, identify documents that are very representative for a those particular topics. Discuss what some of your topics are about in a bit more detail.
+5. After you selected your preferred topic model (k=30), explore the word probabilities ($\beta$) and create meaningful labels for each topic. For some topics, identify documents that are very representative for a those particular topics. Discuss what some of your topics are about in a bit more detail.
+
+
+```{r}
+#k=30
+labelTopics(model3)
+plot.STM(model3, "summary", n=5)
+
+# Create a table of beta (word probabilities)
+beta <- tidytext::tidy(model3)
+beta
+
+# Create a plot to compare beta across topics
+beta_2 <- beta %>% group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  mutate(term = reorder_within(term, beta, topic))
+beta_2
+
+ggplot(beta_2, aes(term, beta, fill = as.factor(topic))) +
+  geom_col(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free_y") +
+  coord_flip() +
+  scale_x_reordered() +
+  labs(x = NULL, y = expression(beta),
+       title = "Highest word probabilities for each topic",
+       subtitle = "Different words are associated with different topics")
+
+```
+
 
 6. Extract the topic proportions ($\theta$) from the model and plot the prevalence of each topic across the overall corpus. Also create a perspective plot visualizing the combination of two topics and discuss the results.
 
