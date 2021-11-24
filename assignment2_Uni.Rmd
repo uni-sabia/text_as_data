@@ -68,8 +68,8 @@ for (k in c(10, 20, 30, 40, 50)){
                      data=para_stm$meta,
                      init.type="LDA",
                      verbose=FALSE)
-  labelTopics(stm_model)
   plot(stm_model)
+  labelTopics(stm_model)
 }
 
 ```
