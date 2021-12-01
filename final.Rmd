@@ -1,0 +1,303 @@
+---
+title: 'Final Assignment: Analyzing Tweets about renewable energy'
+author: "Uni Lee"
+date: "11/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+library(tidyverse)
+library(dplyr)
+library(rmarkdown) # to present tables 
+library(tidytext) # to tidy text data
+library(rtweet) # to retrieve tweets
+library(stringr) # to manipulate strings
+library(usdata) # to manipulate us state names
+library(wordcloud) # to create word clouds
+library(RColorBrewer)
+library(ggthemes)
+library(quanteda)
+library(textdata) # For sentiment dictionary
+library(quanteda.sentiment)
+library(quanteda.textmodels)
+library(quanteda.textplots)
+library(quanteda.textstats)
+
+`%Nin%` <- Negate(`%in%`)
+```
+
+# Research question
+
+Renewable energy is a zero-carbon electricity generation technology that is crucial for solving climate change. However, public acceptance of renewable energy has been challenging for many countries. What are some key topics that appear in discussions about renewable energy? Do people talk about renewable energy negatively or positively? In this project, we will use recent Twitter data to perform some basic text analysis to answer these questions.  
+
+# Data: Tweets about renewable energy
+
+To collect data, we use `rtweet()` function to download tweets that mention renewable energy from November 17-26, 2021. Additional keywords (corporate PPA, green power and RE100) are included in the query since they are highly correlated with this topic. The analysis is limited to tweets in English from the US, and does not include retweets. After eliminating duplicate rows, the final dataset contains 5277 tweets from 3435 users. 
+
+```{r eval=FALSE}
+# NOT RUN
+search <- function(q){ 
+  search_tweets(
+    q=q,
+    n = 100000, 
+    lang="en",
+    geocode=lookup_coords("usa"),
+    include_rts = FALSE
+)
+}
+
+tweets_re <- search("renewable energy")
+tweets_ppa <- search("Corporate PPA")
+tweets_gp <- search("green power")
+tweets_re100 <- search("RE100")
+
+all_tweets <- rbind(tweets_ppa, tweets_re, tweets_re100, tweets_cppa, tweets_gp) %>% 
+  distinct() # eliminate duplicate rows 
+
+nrow(all_tweets) # final dataset has 5277 tweets
+length(unique(all_tweets$user_id)) # from 3435 users
+
+save_as_csv(all_tweets, "tweets_re.csv") 
+```
+
+Since `search_tweets()`function will render different results after some time, I have saved the resulting dataset as a .csv file. Here, we will do some data cleaning before the analysis. 
+
+```{r}
+# Query result
+all_tweets <- read.csv("tweets_re.csv") 
+
+# Change format of date and location  
+twt <- all_tweets %>%
+  select(user_id, created_at, text, location, name) %>%
+  mutate(date=
+            lubridate::as_date(created_at), # Clean time variable 
+         state_abb=
+            str_extract(all_tweets$location, paste(state.abb, collapse="|")), # Get state abbreviations from location
+         state_full=
+            str_extract(tolower(all_tweets$location), paste(tolower(state.name), collapse='|'))) %>% # Get state names from location 
+  mutate(
+    state_abb2 =  # Change state names to abbreviation
+         state2abbr(state_full)) %>% select(-state_full) %>%
+  mutate(
+    state = 
+      ifelse(is.na(state_abb), state_abb2, state_abb)
+  ) %>% select(-state_abb2, -state_abb) %>%
+  mutate(
+    state=ifelse(is.na(state), "Other", state)
+  ) %>% select(-location, -created_at)
+
+# Clean texts
+
+## Clean emojis and odd characters 
+twt$text <- sapply(twt$text, function(row) iconv(row, "latin1", "ASCII", sub=""))
+
+## Lowercase everything
+twt$text <- tolower(twt$text) 
+
+## Remove mentions
+twt$text<- gsub("@\\w+", "", twt$text)
+
+# Remove urls
+twt$text<- gsub("https?://.+", "", twt$text)
+
+# We won't remove hashtags because some people like to hashtag words that have semantic meaning. 
+```
+
+# Overview of most commonly mentioned words 
+
+First, we will visualize the frequencies of words appearing in the tweets to get a general understanding about key topics.
+
+## Data cleaning: build a tidy text data through tokenization
+
+For analysis, we need to turn the original dataset into a tidy text dataframe (a table with one-token-per-row). We could use either quanteda or tidytext package. For now, let's stick with the tidytext library for the sake of demonstration. We use the `unnest_tokens` function, which automatically turns the text into lowercase and removes punctuation. We will remove stopwords and http elements as well. Note that the unit of analysis here is words. 
+
+```{r message=FALSE}
+# Get text
+text_df <- twt %>% select(text) %>% rownames_to_column()
+
+# Get list of stopwords
+data("stop_words")
+stop_words <- stop_words %>% rename(words=word)
+more_stopwords <- c("https", "t.co", "amp")
+topics <- c("renewable", "energy", "green", "power") 
+
+token_df <- text_df %>% 
+  unnest_tokens(words, text) %>%
+  anti_join(stop_words) %>% # erase stopwords
+  filter(words %Nin% more_stopwords) %>% # Manually erase http elements
+  filter(words %Nin% topics) # Take out the main topic to extract associate words, not the topics themselves
+
+paged_table(token_df)
+
+```
+
+## Wordcloud
+
+We can visualize the results into a word cloud and a bar graph showing absolute and relative word frequencies. The word cloud is interesting because we can words that occur less frequently as well. 
+
+```{r}
+token_count <- token_df %>%
+  count(words, sort=TRUE) 
+
+# Wordcloud 
+suppressWarnings(
+  wordcloud(words=token_count$words,
+          freq=token_count$n,
+          min.freq=100,
+          max.words=1000,
+          random.order=FALSE,
+          colors=brewer.pal(8, "Set2"))
+)
+```
+
+## Plot frequent words using ggplot
+
+Next, we will plot word frequencies using ggplot. Ten most commonly-used words are solar, wind, clean, nuclear, climate, fossil, gas, electric, hydrogen and electricity. Frequency of solar is much higher than any other word. 
+
+```{r}
+# Top 10 words
+token_top10 <- token_count %>%
+  top_n(10) %>%
+  mutate(words=reorder(words, n)) 
+
+token_top10 %>%
+  ggplot(aes(x=words, y=n, fill=words)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip() + 
+  labs(title = "Commonly used words", 
+  subtitle="in tweets about renewable energy", y="count") +
+  theme_few() + 
+  theme(legend.position = "none") +
+  scale_fill_pander()
+```
+
+# Understanding keywords in context with qunateda
+
+Now that we understand which ones are most commonly found in these tweets, let's move on to understanding the context. First, we create a corpus of all tweets with quanteda package and then apply `kwic()` function. 
+
+A glimpse of the contexts in which the 5 most common words appear gives us a general feeling that tweets about renewable energy are positive. But is that really true across all tweets in our sample? 
+
+```{r}
+top10words <- as.vector(token_top10$words)
+top10words
+
+# create a corpus object for original tweets
+twcorpus <- corpus(twt$text)
+
+# Keyword in context for the top 5 keywords
+for (i in top10words[1:5]) {
+  print(
+    suppressWarnings(
+      kwic(twcorpus, pattern=i)[1:10,]
+      ))
+}
+
+```
+
+# Sentiment analysis of tweets using a dictionary from quanteda.sentiment package
+
+Let's perform a sentiment analysis to test our hypothesis. We will categorize all words in the sample into negative and positive terms using the Lexicoder sentiment dictionary (2015) from quanteda.sentiment package. 
+
+First, we create a document feature matrix for the corpus. We have to tokenize the corpus and clean them first. This time, I will use quanteda package (we had used tidytext earlier to perform the same task). 
+
+```{r}
+# Preprocessing text data using quanteda. 
+tw_corp <- corpus(twt, text_field="text") ## Create a corpus
+
+twdfm <- tokens(tw_corp, # Tokenize the corpus
+                  what = "word", 
+                  remove_punct = TRUE,
+                  remove_symbol = TRUE,
+                  remove_numbers = FALSE, 
+                  include_docvars = TRUE) %>%
+  tokens_tolower() %>%  
+  tokens_remove(stopwords("en", source="snowball")) %>% # Snowball stopwords
+  tokens_remove(topics) %>% # eliminate topics
+  tokens_remove(more_stopwords) %>% # eliminate urls
+  tokens_wordstem() %>%
+  dfm()  # Create a dfm
+twdfm 
+
+# Attach dictionary
+twdfm_sent <- twdfm %>% 
+  dfm_lookup(dictionary = 
+               data_dictionary_LSD2015[1:2])  # only check negative and positive sentiments
+
+twdfm_sent
+```
+
+We can turn this into a dataframe and create a graph that shows which sentiment is more dominant in tweets about renewable energy. The graph shows that there are about two times more positive words in the dataset. 
+
+```{r}
+convert(twdfm_sent, to="data.frame") %>%
+  summarize(negative=sum(negative),
+            positive=sum(positive)) %>%
+  pivot_longer(cols=negative:positive,
+               names_to="sentiment",
+               values_to="words") %>%
+  ggplot(aes(x=sentiment, y=words, fill=sentiment)) + geom_bar(stat="identity") +
+  theme_economist() +
+  labs(y="Word requency",
+       title= "Sentiment",
+       subtitle="of tweets about renewable energy") +
+  theme(axis.title.x=element_blank(),
+        legend.title=element_blank())
+
+```
+
+To understand how the sentiment distribution varies across time, we can group the dfm by date and weight the feature frequencies. Here, we will consider relative frequency for each day. The resulting graph shows that the distribution of sentiments about renewable energy has been consistently positive from Nov.17 - Nov. 26, 2021. 
+
+```{r}
+# group by date and turn frequencies into %
+twdfm_gr <- twdfm_sent %>% 
+  dfm_group(date) %>%
+  dfm_weight(scheme="prop")
+
+twdfm_gr_df <- convert(twdfm_gr, to="data.frame") %>%
+    pivot_longer(cols=negative:positive,
+                 names_to="sentiment",
+                 values_to="share_words") %>%
+  rename(date=doc_id)  %>%
+  drop_na() %>%
+  arrange(desc(share_words))
+
+ggplot(twdfm_gr_df, aes(x=date, y=share_words, color=sentiment, fill=sentiment)) + 
+  geom_bar(stat="identity") +
+  theme_economist() +
+  labs(y="% share", x="", 
+       title= "Daily distribution",
+       subtitle="of sentiments about renewable energy") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.title=element_blank())
+```
+
+# Understanding how sentiment varies across region with quanteda.textstat package
+
+Is the sentiment consistent across region? We will perform the same task using quanteda.textstat package for regional comparison. The resulting graph shows that all tweets from Hawaii had negative sentiment, while tweets from Montana, Nevada and Wyoming were 100% positive. 
+
+```{r}
+twdfm_state <- twdfm_sent %>% 
+  dfm_group(state) %>%
+  dfm_weight(scheme="prop")
+
+textstat_frequency(twdfm_state, n=2, groups=state) %>%  
+  ggplot(aes(x = reorder(group, -frequency), y = frequency, fill=feature)) +
+  geom_col(width=1) + coord_flip() + 
+  labs(x = "", y = "Share of sentiments")  
+## Sorry about the bad graphing here, but couldn't figure out how to expand the ggplot2 window
+  
+```
+
+
+```{r}
+nrc_sent <- get_sentiments(lexicon="bing") %>%
+  rename(words=word)
+
+token_df %>% inner_join(nrc_sent) %>%
+  group_by(sentiment, words) %>%
+  summarize(freq=n())
+```
+

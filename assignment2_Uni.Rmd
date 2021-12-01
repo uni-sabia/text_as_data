@@ -11,9 +11,10 @@ library(readtext)
 library(quanteda)
 library(dplyr)
 library(tidyr)
-library(seededlda)
 library(stm)
 library(kableExtra)
+library(stm)
+library(rmarkdown)
 theme_set(theme_minimal())
 ```
 
@@ -91,7 +92,9 @@ model5 <- stm(para_stm$documents,
 
 4. Create a diagnostic plot showing the held-out likelihood, the residuals, the semantic coherence of the topics, and the lower bound. Also create a plot to contrast the semantic coherence with the exclusivity of the topics, i.e. how much each topic has its own vocabulary not used by other topics. Explain your results and decide on an optimal number of topics to continue with.
 
-To choose the number of topics, we can consult several quantitative diagostic values by using `searchK()` function. I will choose K=30 and here's how I decided on this number: First, I ruled out k=50 because its residuals were too high. I ruled out k=10 because its held-out likelihood was the lowest. k=30 had the highest held-out likelihood than the rest. To be sure, I compared the semantic coherence vs. exclusivity graphs for k=20, 30, 40. Since k=30 had most points on the top-right, I will choose=30. 
+To choose the number of topics, we can consult several quantitative diagostic values by using `searchK()` function. I will choose K=20. 
+
+Here's how I decided on this number: First, I ruled out k=50 because its residuals were too high. I ruled out k=10 and k=30 because their held-out likelihood was the lowest. k=20 had higher coherence than k=40, so k=20 was likely to be the final choice. To confirm, I compared the semantic coherence vs. exclusivity graphs for k=20, and 40. Since k=20 had most points on the top-right, I decided on k=20. 
 
 ```{r}
 # Diagnostic Values 
@@ -123,7 +126,6 @@ coex <- function(k){
 }
 
 k_20 <- coex(k=20)
-k_30 <- coex(k=30)
 k_40 <- coex(k=40)
 
 ```
@@ -132,14 +134,14 @@ k_40 <- coex(k=40)
 
 ## Create topic labels and explore topic prevalence
 
-5. After you selected your preferred topic model (k=30), explore the word probabilities ($\beta$) and create meaningful labels for each topic. For some topics, identify documents that are very representative for a those particular topics. Discuss what some of your topics are about in a bit more detail.
+5. After you selected your preferred topic model (k=20), explore the word probabilities ($\beta$) and create meaningful labels for each topic. For some topics, identify documents that are very representative for a those particular topics. Discuss what some of your topics are about in a bit more detail.
 
 
 ```{r}
 # For k=30
 # Create a table of beta (word probabilities)
-beta <- tidytext::tidy(model3)
-beta
+beta <- tidytext::tidy(model2)
+paged_table(beta)
 
 # Create a plot to compare beta across topics
 beta_2 <- beta %>% group_by(topic) %>%
@@ -159,19 +161,21 @@ ggplot(beta_2, aes(term, beta, fill = as.factor(topic))) +
 
 ```
 
-Let's create lables for each topic and see which topics are most prevalent. The following code tells us that topic 10, 5, 8 have the highest proportions. 
+Let's create lables for each topic and see which topics are most prevalent. The following code tells us that topic 5 (health, medical, procedures), 4 (abortion, partial-birth, ban) and 1 (bill, induction, patient) and 7 (senator, president, mr) have the highest expected proportions. 
 
 ```{r}
-labelTopics(model3, n=5)
-plot.STM(model3, "summary")
+labelTopics(model2, n=5)
+plot.STM(model2, "summary")
 ```
 
-Looking closer at topics 10, 5, 8, we get: 
+I will pick topic 5, 4 and 1, and label them manually.
 
 ```{r}
-plot.STM(model3, "labels", topics=c(10, 5, 8), n=10,
-         label="frex",  width=70)
+plot.STM(model2, "labels", topics=c(5, 4, 1), n=8,
+         label="prob",  width=50)
 
+pick_topics <- c(1,4,5)
+label_topics <- c("Bill of Rights", "Legislation on Partial-birth Abortion", "Womens' Health")
 ```
 
 To identify which documents are most representative of each topic, we use `findThoughts()` function. 
@@ -182,50 +186,50 @@ thoughts <- function(model, texts, k) {
   model, texts= texts, topics=k)
 }
 
-thoughts10 <- thoughts(model3, speeches_para, 10)
-thoughts5 <- thoughts(model3, speeches_para, 5)
-thoughts8 <- thoughts(model3, speeches_para, 8)
+thoughts5 <- thoughts(model2, speeches_para, 5)
+thoughts4 <- thoughts(model2, speeches_para, 4)
+thoughts1 <- thoughts(model2, speeches_para, 1)
 
 ```
 
-## Topic 10: right, woman's, techniques, choose, dilation
+## Topic 5: Women's health
 
-The three documents that are most associated with topic 10 defend the Abortion Ban by arguing that a fetus is a child, and that abortion constitutes as "killing". 
-
-```{r}
-thoughts10
-```
-
-## Topic 5: procedures, safe, percent, medical, legal
-
-The three documents that are most associated with topic 5 accuse that the high support for legalizing abortion is deceptive. 
+The three documents that are most associated with topic 5 discuss the health implications of abnormal pregnancies in women. However, it seems that topic 5 are also from procedural phrases, which has no meaningful content.
 
 ```{r}
 thoughts5
 ```
 
-## Topic 8: baby, birth, partial, fetus, term 
+## Topic 4: Legislation on Partial-birth Abortion
 
-The three documents that are most associated with topic 8 talk in gruesome detail about how dangerous abortion procedures are both to the mother and baby, and that abortion is like "killing" a child. 
+The three documents that are most associated with topic 4 discuss partial-birth abortion, which was banned in some states like Ohio, but was legalized in others with bipartison vote. 
 
 ```{r}
-thoughts8
+thoughts4
+```
+
+## Topic 1: Bill of Rights
+
+Documents most associated with topic 1 discuss basic human rights, sovereignty of states and state bills.
+
+```{r}
+thoughts1
 ```
 
 
 6. Extract the topic proportions ($\theta$) from the model and plot the prevalence of each topic across the overall corpus. Also create a perspective plot visualizing the combination of two topics and discuss the results.
 
-The first plot from the code below shows the distribution of theta values per document. Since there are too many documents and topics, I only looked at first 15 documents and 10 topics. This plot shows topic proportion per document. Documents 2, 5, 6, 7 are strongly associated with topic 8. Other documents displayed in this plot are not strongly related to topics 1-10.
+The first plot from the code below shows the distribution of theta values per document. Since there are too many documents and topics, I only looked at first 15 documents and 10 topics. This plot shows topic proportion per document. While topics are not evenly distributed across documents, the top 3 topics I picked are most associated with documents 2, 8, 11, 14 and 18. 
 
 The second plot shows the prevalence of each topic across the corpus, which can be done using plot.STM function and "hist" as the "type" argument. Since 30 topics were too many to process, I only looked at 1 to 10 topics. This plot shows that each topic has very small relation with several documents. 
 
 ```{r}
 # Topic proportions (=theta)
-theta <- make.dt(model3)
+theta <- make.dt(model2)
 theta
 
 # Theta values per document
-theta_2 <- tidy(model3, matrix="theta") %>% filter(
+theta_2 <- tidy(model2, matrix="theta") %>% filter(
   document < 16, topic < 11) # Only look at first 15 documents and 10 topics because there are too many
 
 theta_plot <- ggplot(theta_2, 
@@ -237,19 +241,20 @@ theta_plot <- ggplot(theta_2,
 theta_plot
 
 # Plot prevalence of each topic across the overall corpus (expected distribution of topic proportions across the documents)
-plot.STM(model3, type="hist", topics=c(1:10))
+plot.STM(model2, type="hist", topics=c(1:16))
 
 
 ```
 
-Next three plots show the combination of two topics. The y-axis represents the frequency of words within the topic and x-axis represents how much the word is favored in the topic against each other. Overall, they show topical contrasts. These graphs show that topic 10 and 8 are highly contrasted, while topic 5 have weak semantic content.  
+Next three plots show the combination of two topics. The y-axis represents the frequency of words within the topic and x-axis represents how much the word is favored in the topic against each other. Overall, they show topical contrasts. These graphs show that topic 5 and 1 are highly contrasted, while topic 4 have weak semantic content.
+
 
 ```{r}
 
 # Combination of two topics
-plot.STM(model3, type="perspectives", topics=c(10, 5))
-plot.STM(model3, type="perspectives", topics=c(10, 8))
-plot.STM(model3, type="perspectives", topics=c(8, 5))
+plot.STM(model2, type="perspectives", topics=c(4, 1))
+plot.STM(model2, type="perspectives", topics=c(5, 1))
+plot.STM(model2, type="perspectives", topics=c(4, 5))
 
 ```
 
@@ -258,36 +263,36 @@ plot.STM(model3, type="perspectives", topics=c(8, 5))
 
 7. Refit your favorite stm model but this time include a covariant for party affiliation into the model (i.e. saying that party affiliation impacts topic prevalence). Once the model converged, estimate the effect that party affiliation has on the prevalence of two topics, i.e. are Democrats or Republicans more likely to speak about either of the topics. Create a plot of your estimated effects and discuss your results.
 
-The more republican the speaker is, the more likely she/he will talk about topic 8. This makes sense because topic 8 is contains strong arguments against abortion, including danger to the mother's health and baby's life, while Topic 10  discusses whether fetus can be considered as a child or not. However, party afflication does not play such a strong role because both topics are associated with anti-abortion sentiments, which are often favored by republicans.
+Adding the party afflication variable as a covariant shows that Topic 4 (Legislation on partial-birth abortion) is party-neutral, while Topic 5 (Women's rights) is more likely to merge in speeches of democrat politicians. This makes sense because topic 4 is considered to be bipartisan. Topic 1 (Bill of Rights) is less associated with democratic partisanship than Topic 5. All three topics are not correlated with republican affliation. 
 
 ```{r}
-# k=30
-model3_cov <- stm(para_stm$documents,
+# k=20
+model2_cov <- stm(para_stm$documents,
                   para_stm$vocab,
                   data=para_stm$meta,
-                  K=30,
+                  K=20,
                   prevalence=~party,
                   verbose=FALSE) # Partu as a covariate in the topic prevalence argument
 
 # Estimate the effect that party affiliation has on the prevalence of two topics
 predict_topics <- estimateEffect(
-  formula = 1:10 ~party, # first 10 topics
-  stmobj= model3_cov,
+  formula = pick_topics ~party, # first 10 topics
+  stmobj= model2_cov,
   metadata= para_stm$meta,
   uncertainty = "Global"
 )
+summary(predict_topics)
 
 plot(predict_topics,
      covariate="party",
-     topics=c(10,8),
-     model=model3_cov,
+     model=model2_cov,
      method="difference",
      cov.value1 = "D", cov.value2="R",
      xlab = "More republican ................ More Democrat",
-     main = "Effect of party on prevalence of two topics",
+     main = "Effect of party on prevalence of three topics",
      xlim=c(-0.5,0.5),
      labeltype= "custom",
-     custom.labels= c("Topic 10", "Topic 8")
+     custom.labels= label_topics
      )
 
 
@@ -296,6 +301,6 @@ plot(predict_topics,
 
 ## Summarize
 
-In this assignment, I performed structural topic modeling on a corpus of US public debates in the US, using `stm()` package. The goal of topic modeling is to discover topics in a text data and understand their relationship to metadata of documents. To perform the analysis, the optimal number of topics were identified by creating diagostic plots for the held-out likelihood, residuals, semantic coherence of topics and lower bounds for k=10, 20, 30, 40, 50. Among them, k=30 seemed most optimal for its high held-out likelihood, low residual and higher semantic coherence in comparison to exclusivity. 
+In this assignment, I performed structural topic modeling on a corpus of US public debates in the US, using `stm()` package. The goal of topic modeling is to discover topics in a text data and understand their relationship to metadata of documents. To perform the analysis, the optimal number of topics were identified by creating diagnostic plots for the held-out likelihood, residuals, semantic coherence of topics and lower bounds for k=10, 20, 30, 40, 50. Among them, k=20 seemed most optimal for its high held-out likelihood, low residual and higher semantic coherence as well as exclusivity. 
 
-Among the 30 topics, topic 10 (right, woman's, techniques, choose, dilation), 8 (procedures, safe, percent, medical, legal) and 5 (baby, birth, partial, fetus, term) had the highest expected topic proportions across documents. Each topic was labeled with top 5 terms with highest word probabilities. Details of each topic are discussed further in the main paragraph. Then, we analyzed the topic proportion (theta values) to see that documents 2, 5, 6, 7 are strongly associated with topic 8. Other documents were are not strongly related to topics 1-10. Also, all topics were not so prevalent, rather uniquely featured in a few documents. The two-topic contrast graphs showed that topic 10 and 8 are highly contrasted, while topic 5 have weak semantic content. Lastly, adding "party" as a covariate in the model showed that The more republican the speaker is, the more likely she/he will talk about topic 8, which contains strong arguments against abortion, including danger to the mother’s health and baby’s life. Party affliation does not play such a strong role because both topics 10 and 8 are associated with anti-abortion, which are both favored by republicans.
+Among the 20 topics, topics 5, 4, 1 had highest expected proportions. According to word probabilities in each topic, the topics were labeled individually. That is, Topic 5 is "Women's health", Topic 4 is "Legislation on Partial-birth Abortion", Topic 1 is "Bill of rights". Each topic is discussed in the context of associated documents in the main paragraph. Analysis of topic proportions (theta values) showed that top three topics were strongly associated with documents 2, 8, 11, 14 and 18. The two-topic contrast (perspective) graphs showed that topic 5 and 1 are highly contrasted, while topic 4 have weak semantic content. Lastly, adding "party" as a covariate in the model showed that Topic 4 (Legislation on partial-birth abortion) is party-neutral, while Topic 5 (Women's rights) is more likely to emerge in speeches of democrat politicians. None of the topics are correlated with republican affiliation. 
